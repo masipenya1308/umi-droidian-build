@@ -1,0 +1,64 @@
+From 0737b3a0f56d6b7abb3f15d20927cd11e01ed99b Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 20:19:06 +0500
+Subject: [PATCH 10/15] apparmor: report the peer cred label for unix sockets
+ in SO_PEERSEC
+
+Mainline 4.19 AppArmor records no peer label on AF_UNIX sockets (that comes
+with Ubuntu's af_unix mediation patches), so getsockopt(SO_PEERSEC) fails
+with ENOPROTOOPT and dbus reports an empty LinuxSecurityLabel. On Ubuntu
+Touch media-hub then aborts ('apparmor::Context cannot be created for empty
+name'), e.g. no ringtone on incoming calls. Fall back to the label of the
+peer's credentials.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ security/apparmor/lsm.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/security/apparmor/lsm.c b/security/apparmor/lsm.c
+index a0818ef2a..4f135fb39 100644
+--- a/security/apparmor/lsm.c
++++ b/security/apparmor/lsm.c
+@@ -1065,9 +1065,30 @@ static int apparmor_socket_getpeersec_stream(struct socket *sock,
+ 	int slen, error = 0;
+ 	struct aa_label *label;
+ 	struct aa_label *peer;
++	struct aa_label *peer_ref = NULL;
+ 
+ 	label = begin_current_label_crit_section();
+ 	peer = sk_peer_label(sock->sk);
++	if (IS_ERR(peer) && sock->sk->sk_family == AF_UNIX) {
++		/*
++		 * Mainline 4.19 AppArmor has no af_unix mediation, so no peer
++		 * label is recorded on unix sockets and SO_PEERSEC fails with
++		 * ENOPROTOOPT. dbus then reports an empty LinuxSecurityLabel
++		 * and Ubuntu Touch services (media-hub, ...) abort. Fall back
++		 * to the label of the peer's credentials.
++		 */
++		const struct cred *pc = NULL;
++
++		spin_lock(&sock->sk->sk_peer_lock);
++		if (sock->sk->sk_peer_cred)
++			pc = get_cred(sock->sk->sk_peer_cred);
++		spin_unlock(&sock->sk->sk_peer_lock);
++		if (pc) {
++			peer_ref = aa_get_newest_cred_label(pc);
++			put_cred(pc);
++			peer = peer_ref;
++		}
++	}
+ 	if (IS_ERR(peer)) {
+ 		error = PTR_ERR(peer);
+ 		goto done;
+@@ -1092,6 +1113,7 @@ static int apparmor_socket_getpeersec_stream(struct socket *sock,
+ 		error = -EFAULT;
+ done:
+ 	end_current_label_crit_section(label);
++	aa_put_label(peer_ref);
+ 	kfree(name);
+ 	return error;
+ }
+-- 
+2.34.1
+

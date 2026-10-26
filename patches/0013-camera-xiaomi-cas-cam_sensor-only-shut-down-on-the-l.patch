@@ -1,0 +1,90 @@
+From f0980ca26e1f91b8f001a675c45da04274d6599c Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 21:55:42 +0500
+Subject: [PATCH 13/15] camera-xiaomi-cas: cam_sensor: only shut down on the
+ last subdev close
+
+The Xiaomi sensor driver calls cam_sensor_shutdown() on every close of the
+subdev, which also clears is_probe_succeed. Any other process opening and
+closing the node (device enumeration on Ubuntu Touch) therefore breaks the
+camera provider: the next CAM_ACQUIRE_DEV fails with 'Not in right state'
+and the preview stays black. Count opens like the generic driver does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../cam_sensor/cam_sensor_dev.c               | 31 ++++++++++++++++++-
+ .../cam_sensor/cam_sensor_dev.h               |  1 +
+ 2 files changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c b/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
+index f847079c7..d0d028c86 100644
+--- a/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
++++ b/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
+@@ -27,6 +27,24 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
+ 	return rc;
+ }
+ 
++static int cam_sensor_subdev_open(struct v4l2_subdev *sd,
++	struct v4l2_subdev_fh *fh)
++{
++	struct cam_sensor_ctrl_t *s_ctrl =
++		v4l2_get_subdevdata(sd);
++
++	if (!s_ctrl) {
++		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
++		return -EINVAL;
++	}
++
++	mutex_lock(&(s_ctrl->cam_sensor_mutex));
++	s_ctrl->open_cnt++;
++	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
++
++	return 0;
++}
++
+ static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
+ 	struct v4l2_subdev_fh *fh)
+ {
+@@ -38,8 +56,18 @@ static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
+ 		return -EINVAL;
+ 	}
+ 
++	/*
++	 * Only shut the sensor down when the last opener goes away (like the
++	 * generic techpack/camera driver). Otherwise any process that merely
++	 * opens and closes the subdev (device enumeration on Ubuntu Touch,
++	 * where SELinux does not keep everyone else out) resets the probe
++	 * state of the camera provider and the next ACQUIRE fails.
++	 */
+ 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
+-	cam_sensor_shutdown(s_ctrl);
++	if (s_ctrl->open_cnt > 0)
++		s_ctrl->open_cnt--;
++	if (s_ctrl->open_cnt == 0)
++		cam_sensor_shutdown(s_ctrl);
+ 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
+ 
+ 	return 0;
+@@ -97,6 +125,7 @@ static struct v4l2_subdev_ops cam_sensor_subdev_ops = {
+ };
+ 
+ static const struct v4l2_subdev_internal_ops cam_sensor_internal_ops = {
++	.open = cam_sensor_subdev_open,
+ 	.close = cam_sensor_subdev_close,
+ };
+ 
+diff --git a/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.h b/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.h
+index b1963e15e..660f6a0d4 100644
+--- a/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.h
++++ b/techpack/camera-xiaomi-cas/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.h
+@@ -91,6 +91,7 @@ struct cam_sensor_ctrl_t {
+ 	struct platform_device *pdev;
+ 	struct cam_hw_soc_info soc_info;
+ 	struct mutex cam_sensor_mutex;
++	int open_cnt;
+ 	struct cam_sensor_board_info *sensordata;
+ 	enum cci_i2c_master_t cci_i2c_master;
+ 	enum cci_device_num cci_num;
+-- 
+2.34.1
+

@@ -1,0 +1,31 @@
+From 6607fee7ac6fe463fc2184864be949a5f17747a4 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 17:02:09 +0500
+Subject: [PATCH 06/15] staging: qcacld-3.0: print WLAN logs to the kernel log
+
+Without QDF_TRACE_PRINT_ENABLE all host driver logs only go to the
+cnss_diag netlink consumer, which is not running during early probe on
+Ubuntu Touch, so probe failures were silent.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c b/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
+index 681046ad8..514bb7755 100644
+--- a/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
++++ b/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
+@@ -3200,7 +3200,8 @@ void qdf_trace_display(void)
+ }
+ qdf_export_symbol(qdf_trace_display);
+ 
+-#ifdef QDF_TRACE_PRINT_ENABLE
++/* Ubuntu Touch: also print to the kernel log (no cnss_diag consumer at probe time) */
++#if defined(QDF_TRACE_PRINT_ENABLE) || 1
+ static inline void print_to_console(char *str_buffer)
+ {
+ 	pr_err("%s\n", str_buffer);
+-- 
+2.34.1
+

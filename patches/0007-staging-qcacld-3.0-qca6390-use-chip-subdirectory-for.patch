@@ -1,0 +1,30 @@
+From 922e7aecbe26feb8abfda5175e6c4831d4e4f02b Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 17:11:27 +0500
+Subject: [PATCH 07/15] staging: qcacld-3.0: qca6390: use chip subdirectory for
+ ini/mac files
+
+The built-in driver looked for wlan/qca_cld/WCNSS_qcom_cfg.ini, which is a
+dangling symlink on Xiaomi apollo vendor images; only the qca6390/ copy
+exists. Probe failed with 'Failed to parse cfg'.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/staging/qcacld-3.0/configs/qca6390_defconfig | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/staging/qcacld-3.0/configs/qca6390_defconfig b/drivers/staging/qcacld-3.0/configs/qca6390_defconfig
+index b3493ed65..d2d1a93c7 100644
+--- a/drivers/staging/qcacld-3.0/configs/qca6390_defconfig
++++ b/drivers/staging/qcacld-3.0/configs/qca6390_defconfig
+@@ -771,3 +771,7 @@ CONFIG_SAP_DHCP_FW_IND := y
+ #Enable FW Offload
+ CONFIG_WLAN_FW_OFFLOAD := y
+ 
++
++# Ubuntu Touch (built-in driver): look up ini/mac files under wlan/qca_cld/qca6390/
++# like the vendor qca6390 module does; the vendor has no generic WCNSS_qcom_cfg.ini.
++DYNAMIC_SINGLE_CHIP := qca6390
+-- 
+2.34.1
+

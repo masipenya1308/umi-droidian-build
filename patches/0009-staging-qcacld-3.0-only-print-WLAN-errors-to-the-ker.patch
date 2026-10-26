@@ -1,0 +1,31 @@
+From 76af3c4348c7d8fa43b28aa4aca0d67197fc0bef Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 18:04:11 +0500
+Subject: [PATCH 09/15] staging: qcacld-3.0: only print WLAN errors to the
+ kernel log
+
+Info/debug WLAN logs flooded dmesg once they were sent to the console.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c b/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
+index 514bb7755..2a6d68996 100644
+--- a/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
++++ b/drivers/staging/qca-wifi-host-cmn/qdf/linux/src/qdf_trace.c
+@@ -3287,7 +3287,9 @@ void qdf_trace_msg_cmn(unsigned int idx,
+ #if defined(WLAN_LOGGING_SOCK_SVC_ENABLE)
+ 		wlan_log_to_user(verbose, (char *)str_buffer,
+ 				 strlen(str_buffer));
+-		if (qdf_likely(qdf_log_dump_at_kernel_enable))
++		/* Ubuntu Touch: only errors/fatal go to the kernel log */
++		if (qdf_likely(qdf_log_dump_at_kernel_enable) &&
++		    verbose <= QDF_TRACE_LEVEL_ERROR)
+ 			print_to_console(str_buffer);
+ #else
+ 		pr_err("%s\n", str_buffer);
+-- 
+2.34.1
+

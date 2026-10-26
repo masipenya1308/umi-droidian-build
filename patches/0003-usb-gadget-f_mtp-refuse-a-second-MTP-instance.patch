@@ -1,0 +1,37 @@
+From ccf2e0dbe82b13ccddee69cd568215aedf37b6f7 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 15:44:43 +0500
+Subject: [PATCH 03/15] usb: gadget: f_mtp: refuse a second MTP instance
+
+Re-running misc_register() on the registered mtp_device corrupts
+misc_list and crashes the next misc_register() (f_accessory).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/usb/gadget/function/f_mtp.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/usb/gadget/function/f_mtp.c b/drivers/usb/gadget/function/f_mtp.c
+index 26e90a192..b2bc30ffb 100644
+--- a/drivers/usb/gadget/function/f_mtp.c
++++ b/drivers/usb/gadget/function/f_mtp.c
+@@ -1697,6 +1697,16 @@ static int __mtp_setup(struct mtp_instance *fi_mtp)
+ 	struct mtp_dev *dev;
+ 	int ret;
+ 
++	/*
++	 * A second MTP instance would re-register the already registered
++	 * mtp_device: misc_register() re-inits its list node and corrupts
++	 * misc_list (BUG in the next misc_register()).
++	 */
++	if (_mtp_dev) {
++		pr_err("mtp: gadget driver already set up\n");
++		return -EBUSY;
++	}
++
+ 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+ 
+ 	if (fi_mtp != NULL)
+-- 
+2.34.1
+

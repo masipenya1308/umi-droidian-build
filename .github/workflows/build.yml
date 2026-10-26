@@ -1,0 +1,62 @@
+name: Build Droidian boot image (umi)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: umi-droidian-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Kernel + boot.img
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout build repository
+        uses: actions/checkout@v4
+
+      - name: Clone LineageOS kernel (pinned)
+        run: |
+          git clone --depth 1 --branch lineage-23.2 \
+            https://github.com/LineageOS/android_kernel_xiaomi_sm8250 kernel
+          cd kernel
+          expected=71b13e62f057a649b77fe4062feb73ee72ad609c
+          actual=$(git rev-parse HEAD)
+          echo "kernel HEAD: $actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::lineage-23.2 moved to $actual (expected $expected). Check the patches before updating."
+            exit 1
+          fi
+
+      - name: Prepare kernel tree
+        run: bash scripts/prepare-kernel.sh "$PWD/kernel"
+
+      - name: Build packages in Droidian container
+        run: |
+          mkdir -p out
+          docker run --rm \
+            -v "$PWD/kernel:/build/sources" \
+            -v "$PWD/out:/build" \
+            quay.io/droidian/build-essential:next-amd64 \
+            /bin/bash -c 'cd /build/sources && RELENG_HOST_ARCH=arm64 releng-build-package'
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifact
+          cp -v kernel/out/KERNEL_OBJ/boot.img artifact/boot.img
+          cp -v kernel/out/KERNEL_OBJ/vbmeta.img artifact/vbmeta.img
+          cp -v out/*.deb artifact/ 2>/dev/null || true
+          ls -lh artifact
+          sha256sum artifact/*
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: umi-droidian-boot
+          path: artifact/*
+          if-no-files-found: error
+          retention-days: 30

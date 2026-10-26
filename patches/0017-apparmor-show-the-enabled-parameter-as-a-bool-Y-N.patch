@@ -1,0 +1,83 @@
+From a5dad0bd9b235465efff62f19c1625dd32677ec8 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sun, 11 Oct 2026 02:45:25 +0500
+Subject: [PATCH 17/17] apparmor: show the enabled parameter as a bool (Y/N)
+
+/sys/module/apparmor/parameters/enabled showed "1"; libapparmor
+aa_is_enabled() expects "Y" and reported AppArmor as disabled
+(ECANCELED), so dbus-daemon never enabled D-Bus mediation. Keep the
+int (lsm_info.enabled) and print it as a bool, like mainline aaintbool.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ security/apparmor/lsm.c | 46 +++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 44 insertions(+), 2 deletions(-)
+
+diff --git a/security/apparmor/lsm.c b/security/apparmor/lsm.c
+index 4f135fb39..227c147b3 100644
+--- a/security/apparmor/lsm.c
++++ b/security/apparmor/lsm.c
+@@ -1265,6 +1265,37 @@ static struct security_hook_list apparmor_hooks[] __lsm_ro_after_init = {
+  */
+ 
+ static int param_set_aabool(const char *val, const struct kernel_param *kp);
++static int param_set_aaintbool(const char *val, const struct kernel_param *kp)
++{
++	struct kernel_param kp_local;
++	bool value;
++	int error;
++
++	if (apparmor_initialized)
++		return -EPERM;
++
++	/* Create local copy, with arg pointing to bool type. */
++	value = !!*((int *)kp->arg);
++	memcpy(&kp_local, kp, sizeof(kp_local));
++	kp_local.arg = &value;
++
++	error = param_set_bool(val, &kp_local);
++	if (!error)
++		*((int *)kp->arg) = *((bool *)kp_local.arg);
++	return error;
++}
++
++static int param_get_aaintbool(char *buffer, const struct kernel_param *kp)
++{
++	struct kernel_param kp_local;
++	bool value;
++
++	value = !!*((int *)kp->arg);
++	memcpy(&kp_local, kp, sizeof(kp_local));
++	kp_local.arg = &value;
++	return param_get_bool(buffer, &kp_local);
++}
++
+ static int param_get_aabool(char *buffer, const struct kernel_param *kp);
+ #define param_check_aabool param_check_bool
+ static const struct kernel_param_ops param_ops_aabool = {
+@@ -1351,9 +1382,20 @@ module_param_named(path_max, aa_g_path_max, aauint, S_IRUSR);
+ bool aa_g_paranoid_load = true;
+ module_param_named(paranoid_load, aa_g_paranoid_load, aabool, S_IRUGO);
+ 
+-/* Boot time disable flag */
++/*
++ * Boot time disable flag. Kept as int for the LSM framework (lsm_info.enabled)
++ * but shown as a bool (Y/N): libapparmor's aa_is_enabled() expects "Y".
++ */
++static int param_set_aaintbool(const char *val, const struct kernel_param *kp);
++static int param_get_aaintbool(char *buffer, const struct kernel_param *kp);
++#define param_check_aaintbool param_check_int
++static const struct kernel_param_ops param_ops_aaintbool = {
++	.set = param_set_aaintbool,
++	.get = param_get_aaintbool
++};
++
+ static int apparmor_enabled __lsm_ro_after_init = 1;
+-module_param_named(enabled, apparmor_enabled, int, 0444);
++module_param_named(enabled, apparmor_enabled, aaintbool, 0444);
+ 
+ static int __init apparmor_enabled_setup(char *str)
+ {
+-- 
+2.34.1
+

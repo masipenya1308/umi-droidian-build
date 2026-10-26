@@ -1,0 +1,37 @@
+From 81ec3e46d9c2b5b42bb5859107d05fbaee26b766 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 21:11:49 +0500
+Subject: [PATCH 12/15] firmware_loader: also search /vendor/firmware_mnt/image
+
+Venus (video) and CVP firmware are requested from the Android container,
+whose mount namespace has no /lib/firmware; firmware_class.path can only
+name one directory (/vendor/firmware). Add the modem partition image dir,
+which exists in both the host and the container.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/base/firmware_loader/main.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/base/firmware_loader/main.c b/drivers/base/firmware_loader/main.c
+index 94b96a9a4..1b2d64c7f 100644
+--- a/drivers/base/firmware_loader/main.c
++++ b/drivers/base/firmware_loader/main.c
+@@ -287,7 +287,13 @@ static const char * const fw_path[] = {
+ 	"/lib/firmware/updates/" UTS_RELEASE,
+ 	"/lib/firmware/updates",
+ 	"/lib/firmware/" UTS_RELEASE,
+-	"/lib/firmware"
++	"/lib/firmware",
++	/*
++	 * Halium/Ubuntu Touch: modem-partition firmware (venus, cvp, adsp, wlan, ...).
++	 * Requests from the Android container resolve paths in its mount namespace,
++	 * where only /vendor/... exists, so list it explicitly.
++	 */
++	"/vendor/firmware_mnt/image"
+ };
+ 
+ /*
+-- 
+2.34.1
+

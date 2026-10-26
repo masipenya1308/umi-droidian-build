@@ -1,0 +1,50 @@
+From c5b0caf59b0818d8bd762dca56d2a9321cb71eef Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 17:29:59 +0500
+Subject: [PATCH 08/15] ipv4: treat a 0.0.0.0 RTA_GATEWAY as no gateway
+
+The nexthop backport in this tree sets fc_gw_family = AF_INET for any
+RTA_GATEWAY, so a route with gateway 0.0.0.0 goes through the gateway
+check and fails with 'Nexthop has invalid gateway' (ENETUNREACH).
+NetworkManager 1.46 always sends RTA_GATEWAY, so no IPv4 route could be
+added on Ubuntu Touch. Match upstream: only set the family if non-zero.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ net/ipv4/fib_frontend.c  | 3 ++-
+ net/ipv4/fib_semantics.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/net/ipv4/fib_frontend.c b/net/ipv4/fib_frontend.c
+index 89ace5368..aad8a2fb9 100644
+--- a/net/ipv4/fib_frontend.c
++++ b/net/ipv4/fib_frontend.c
+@@ -708,8 +708,9 @@ static int rtm_to_fib_config(struct net *net, struct sk_buff *skb,
+ 			cfg->fc_oif = nla_get_u32(attr);
+ 			break;
+ 		case RTA_GATEWAY:
+-			cfg->fc_gw_family = AF_INET;
+ 			cfg->fc_gw4 = nla_get_be32(attr);
++			if (cfg->fc_gw4)
++				cfg->fc_gw_family = AF_INET;
+ 			break;
+ 		case RTA_VIA:
+ 			NL_SET_ERR_MSG(extack, "IPv4 does not support RTA_VIA attribute");
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index ac0a03933..31a71ef2a 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -629,8 +629,9 @@ static int fib_get_nhs(struct fib_info *fi, struct rtnexthop *rtnh,
+ 
+ 			nla = nla_find(attrs, attrlen, RTA_GATEWAY);
+ 			if (nla) {
+-				fib_cfg.fc_gw_family = AF_INET;
+ 				fib_cfg.fc_gw4 = nla_get_in_addr(nla);
++				if (fib_cfg.fc_gw4)
++					fib_cfg.fc_gw_family = AF_INET;
+ 			}
+ 
+ 			nla = nla_find(attrs, attrlen, RTA_FLOW);
+-- 
+2.34.1
+

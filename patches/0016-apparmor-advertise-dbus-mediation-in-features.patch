@@ -1,0 +1,46 @@
+From 5bfeebb7c96fa327559aafdaccf3c05eda4d0697 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sun, 11 Oct 2026 02:30:04 +0500
+Subject: [PATCH 16/17] apparmor: advertise dbus mediation in features
+
+dbus-daemon only enables AppArmor D-Bus mediation (and answers
+GetConnectionAppArmorSecurityContext) when the kernel lists
+features/dbus. The mediation itself uses the existing label query
+interface. Ubuntu Touch's biometryd aborts without it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ security/apparmor/apparmorfs.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/security/apparmor/apparmorfs.c b/security/apparmor/apparmorfs.c
+index 341144e22..abf92f55f 100644
+--- a/security/apparmor/apparmorfs.c
++++ b/security/apparmor/apparmorfs.c
+@@ -2293,6 +2293,15 @@ static struct aa_sfs_entry aa_sfs_entry_query[] = {
+ 	AA_SFS_DIR("label",			aa_sfs_entry_query_label),
+ 	{ }
+ };
++/*
++ * D-Bus mediation is done by dbus-daemon through the label query interface;
++ * advertise it like Ubuntu kernels do so dbus-daemon enables AppArmor support.
++ */
++static struct aa_sfs_entry aa_sfs_entry_dbus[] = {
++	AA_SFS_FILE_STRING("mask", "acquire send receive"),
++	{ }
++};
++
+ static struct aa_sfs_entry aa_sfs_entry_features[] = {
+ 	AA_SFS_DIR("policy",			aa_sfs_entry_policy),
+ 	AA_SFS_DIR("domain",			aa_sfs_entry_domain),
+@@ -2306,6 +2315,7 @@ static struct aa_sfs_entry aa_sfs_entry_features[] = {
+ 	AA_SFS_DIR("ptrace",			aa_sfs_entry_ptrace),
+ 	AA_SFS_DIR("signal",			aa_sfs_entry_signal),
+ 	AA_SFS_DIR("query",			aa_sfs_entry_query),
++	AA_SFS_DIR("dbus",			aa_sfs_entry_dbus),
+ 	{ }
+ };
+ 
+-- 
+2.34.1
+

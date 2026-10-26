@@ -1,0 +1,35 @@
+From 5cee7481c4bbb5cad472ebf422197be0edb92d37 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 22:30:37 +0500
+Subject: [PATCH 14/15] input: aw8697_haptic: play FF_RUMBLE effects as
+ FF_CONSTANT
+
+The driver advertises FF_RUMBLE but only handles FF_CONSTANT and FF_PERIODIC,
+so rumble requests from Linux userspace (Ubuntu Touch hfd-service) were
+silently ignored and the phone never vibrated.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/input/misc/aw8697_haptic/aw8697.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/input/misc/aw8697_haptic/aw8697.c b/drivers/input/misc/aw8697_haptic/aw8697.c
+index 289315321..4cca63d16 100644
+--- a/drivers/input/misc/aw8697_haptic/aw8697.c
++++ b/drivers/input/misc/aw8697_haptic/aw8697.c
+@@ -4747,6 +4747,12 @@ static int aw8697_haptics_upload_effect(struct input_dev *dev,
+ 	aw_pr_debug("%s: effect->type=0x%x,FF_CONSTANT=0x%x,FF_PERIODIC=0x%x\n",
+ 		 __func__, effect->type, FF_CONSTANT, FF_PERIODIC);
+ 	aw8697->effect_type = effect->type;
++	/*
++	 * Linux userspace (e.g. Ubuntu Touch hfd-service) uses FF_RUMBLE; play
++	 * it like the FF_CONSTANT effects the Android vibrator HAL sends.
++	 */
++	if (effect->type == FF_RUMBLE)
++		aw8697->effect_type = FF_CONSTANT;
+ 	mutex_lock(&aw8697->lock);
+ 	while (atomic_read(&aw8697->exit_in_rtp_loop)) {
+ 		aw_pr_info("%s  goint to waiting rtp  exit\n", __func__);
+-- 
+2.34.1
+

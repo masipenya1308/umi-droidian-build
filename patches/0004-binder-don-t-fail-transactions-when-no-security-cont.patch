@@ -1,0 +1,69 @@
+From 833ff21186117c867216f4e18832d29102e3d3f9 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 16:05:55 +0500
+Subject: [PATCH 04/15] binder: don't fail transactions when no security
+ context is available
+
+Android 11+ servicemanagers request the sender's security context
+(FLAT_BINDER_FLAG_TXN_SECURITY_CTX). Without SELinux (Ubuntu Touch
+uses AppArmor) security_secid_to_secctx() fails and every call to the
+context manager was rejected with BR_FAILED_REPLY. Deliver the
+transaction without a context instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/android/binder.c | 31 +++++++++++++++++--------------
+ 1 file changed, 17 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/android/binder.c b/drivers/android/binder.c
+index 1eb251a3c..21b0c9cf1 100644
+--- a/drivers/android/binder.c
++++ b/drivers/android/binder.c
+@@ -3346,19 +3346,23 @@ static void binder_transaction(struct binder_proc *proc,
+ 		security_cred_getsecid(proc->cred, &secid);
+ 		ret = security_secid_to_secctx(secid, &secctx, &secctx_sz);
+ 		if (ret) {
+-			return_error = BR_FAILED_REPLY;
+-			return_error_param = ret;
+-			return_error_line = __LINE__;
+-			goto err_get_secctx_failed;
+-		}
+-		added_size = ALIGN(secctx_sz, sizeof(u64));
+-		extra_buffers_size += added_size;
+-		if (extra_buffers_size < added_size) {
+-			/* integer overflow of extra_buffers_size */
+-			return_error = BR_FAILED_REPLY;
+-			return_error_param = EINVAL;
+-			return_error_line = __LINE__;
+-			goto err_bad_extra_size;
++			/*
++			 * No security context available (SELinux not active,
++			 * e.g. Ubuntu Touch with AppArmor): deliver the
++			 * transaction without one instead of failing it.
++			 */
++			secctx = NULL;
++			secctx_sz = 0;
++		} else {
++			added_size = ALIGN(secctx_sz, sizeof(u64));
++			extra_buffers_size += added_size;
++			if (extra_buffers_size < added_size) {
++				/* integer overflow of extra_buffers_size */
++				return_error = BR_FAILED_REPLY;
++				return_error_param = EINVAL;
++				return_error_line = __LINE__;
++				goto err_bad_extra_size;
++			}
+ 		}
+ 	}
+ 
+@@ -3721,7 +3725,6 @@ static void binder_transaction(struct binder_proc *proc,
+ err_bad_extra_size:
+ 	if (secctx)
+ 		security_release_secctx(secctx, secctx_sz);
+-err_get_secctx_failed:
+ 	kfree(tcomplete);
+ 	binder_stats_deleted(BINDER_STAT_TRANSACTION_COMPLETE);
+ err_alloc_tcomplete_failed:
+-- 
+2.34.1
+

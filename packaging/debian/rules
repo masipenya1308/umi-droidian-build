@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+
+include /usr/share/linux-packaging-snippets/kernel-snippet.mk
+
+# Use the external device-tree-compiler from the build container.
+BUILD_COMMAND := $(BUILD_COMMAND) DTC_EXT=/usr/bin/dtc $(KERNEL_BUILD_FLAGS)
+
+%:
+	dh $@

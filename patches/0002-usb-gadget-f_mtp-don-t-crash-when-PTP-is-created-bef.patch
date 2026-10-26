@@ -1,0 +1,59 @@
+From 5c97545ae3b7ed5d5ea6c5c83b7f43b009676b91 Mon Sep 17 00:00:00 2001
+From: Hassan <hafizhassanlatif@gmail.com>
+Date: Sat, 10 Oct 2026 06:21:30 +0500
+Subject: [PATCH 02/15] usb: gadget: f_mtp: don't crash when PTP is created
+ before MTP
+
+alloc_inst_mtp_ptp(false) copies _mtp_dev and then does
+mutex_init(&fi_mtp->dev->read_mutex). If mtp.gs0 has not been set up
+(e.g. Android and Ubuntu Touch both configuring the gadget), _mtp_dev is
+NULL and the kernel oopses in configfs mkdir. Fail with -ENODEV instead.
+
+security: fix the default value of fs_context_parse_param hook
+
+Backport of the upstream 5.17 fix: the BPF LSM default of 0 swallowed the
+mount 'source' parameter when SELinux is not active, so every block-device
+mount failed with -ENOENT under AppArmor. Default must be -ENOPARAM.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/usb/gadget/function/f_mtp.c | 8 +++++++-
+ include/linux/lsm_hook_defs.h       | 2 +-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/gadget/function/f_mtp.c b/drivers/usb/gadget/function/f_mtp.c
+index bf56b7a90..26e90a192 100644
+--- a/drivers/usb/gadget/function/f_mtp.c
++++ b/drivers/usb/gadget/function/f_mtp.c
+@@ -1843,8 +1843,14 @@ struct usb_function_instance *alloc_inst_mtp_ptp(bool mtp_config)
+ 			pr_err("Error setting MTP\n");
+ 			return ERR_PTR(ret);
+ 		}
+-	} else
++	} else {
++		if (!_mtp_dev) {
++			kfree(fi_mtp);
++			pr_err("PTP requested before MTP was set up\n");
++			return ERR_PTR(-ENODEV);
++		}
+ 		fi_mtp->dev = _mtp_dev;
++	}
+ 
+ 	config_group_init_type_name(&fi_mtp->func_inst.group,
+ 					"", &mtp_func_type);
+diff --git a/include/linux/lsm_hook_defs.h b/include/linux/lsm_hook_defs.h
+index 7a53cac8f..2bd35717f 100644
+--- a/include/linux/lsm_hook_defs.h
++++ b/include/linux/lsm_hook_defs.h
+@@ -53,7 +53,7 @@ LSM_HOOK(int, 0, bprm_set_creds, struct linux_binprm *bprm)
+ LSM_HOOK(int, 0, bprm_check_security, struct linux_binprm *bprm)
+ LSM_HOOK(void, LSM_RET_VOID, bprm_committing_creds, struct linux_binprm *bprm)
+ LSM_HOOK(void, LSM_RET_VOID, bprm_committed_creds, struct linux_binprm *bprm)
+-LSM_HOOK(int, 0, fs_context_parse_param, struct fs_context *fc, struct fs_parameter *param)
++LSM_HOOK(int, -ENOPARAM, fs_context_parse_param, struct fs_context *fc, struct fs_parameter *param)
+ LSM_HOOK(int, 0, sb_alloc_security, struct super_block *sb)
+ LSM_HOOK(void, LSM_RET_VOID, sb_free_security, struct super_block *sb)
+ LSM_HOOK(void, LSM_RET_VOID, sb_free_mnt_opts, void *mnt_opts)
+-- 
+2.34.1
+
