@@ -25,7 +25,6 @@ install -m 0644 "$REPO_DIR/configs/halium.config" droidian/halium.config
 
 echo "==> Installing Debian packaging"
 mkdir -p debian/source
-install -m 0644 "$REPO_DIR/packaging/debian/compat" debian/compat
 install -m 0644 "$REPO_DIR/packaging/debian/control" debian/control
 install -m 0644 "$REPO_DIR/packaging/debian/copyright" debian/copyright
 install -m 0644 "$REPO_DIR/packaging/debian/kernel-info.mk" debian/kernel-info.mk
