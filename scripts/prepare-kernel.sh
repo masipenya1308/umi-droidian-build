@@ -18,7 +18,7 @@ done
 
 echo "==> Installing Droidian config fragments"
 mkdir -p droidian
-install -m 0644 arch/arm64/configs/debugfs.config droidian/debugfs.config
+install -m 0644 arch/arm64/configs/vendor/debugfs.config droidian/debugfs.config
 install -m 0644 arch/arm64/configs/vendor/xiaomi/sm8250-common.config droidian/sm8250-common.config
 install -m 0644 arch/arm64/configs/vendor/xiaomi/umi.config droidian/umi.config
 install -m 0644 "$REPO_DIR/configs/halium.config" droidian/halium.config
