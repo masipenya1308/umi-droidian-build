@@ -5,12 +5,15 @@ Maintainer: Droidian porters <info@droidian.org>
 XS-Droidian-Host-Arch: arm64
 XS-Droidian-Build-On: amd64
 XS-Droidian-Compact-Changelog: yes
+# debhelper: the compat level comes from debian/compat ONLY. Listing
+# debhelper-compat here as well made dh abort ("compat level specified both in
+# debian/compat and in debian/control") - CI run 121444855066, build.yml step
+# "Build packages in Droidian container".
 Build-Depends: build-essential,
                dpkg-dev,
                findutils,
                android-platform-prebuilts-python-linux-x86-2.7.5 [amd64],
                debhelper (>= 13),
-               debhelper-compat (= 13),
                bc,
                rsync,
                kmod,

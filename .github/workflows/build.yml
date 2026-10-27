@@ -32,8 +32,22 @@ jobs:
             exit 1
           fi
 
-      - name: Prepare kernel tree
+      - name: Prepare kernel tree (patch check, patches, fragments, packaging)
         run: bash scripts/prepare-kernel.sh "$PWD/kernel"
+
+      - name: Sanity-check the Debian packaging
+        run: |
+          # Same rules as dh: exactly one debhelper compat level, a changelog and a
+          # source format must exist, and the changelog package name must match control.
+          set -euo pipefail
+          cd kernel/debian
+          echo "compat=$(cat compat)"
+          for f in control changelog compat rules kernel-info.mk source/format; do
+            test -f "$f" || { echo "::error::debian/$f is missing"; exit 1; }
+          done
+          ! grep -q 'debhelper-compat' control \
+            || { echo "::error::debhelper-compat in control conflicts with the debian/compat file"; exit 1; }
+          true
 
       - name: Build packages in Droidian container
         run: |

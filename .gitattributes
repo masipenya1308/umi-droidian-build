@@ -2,3 +2,8 @@
 *.sh text eol=lf
 *.patch text eol=lf
 *.yml text eol=lf
+
+# Shell/CI files must keep LF: a CRLF prepare-kernel.sh breaks on the runner.
+# Debian packaging is read by dh on the Linux runner.
+debian/* text eol=lf
+packaging/debian/* text eol=lf

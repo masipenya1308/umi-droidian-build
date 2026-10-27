@@ -1,0 +1,8 @@
+linux-android-xiaomi-umi (0.0.0+git20261027000000.71b13e6.lineage.23.2) unstable; urgency=medium
+
+  * Placeholder changelog. linux-packaging-snippets generates the real
+    changelog from the kernel git history ("Building changelog from git
+    history"); this file only guarantees that dpkg-buildpackage does not
+    abort when it is invoked before that step.
+
+ -- Droidian porters <info@droidian.org>  Tue, 27 Oct 2026 00:00:00 +0000

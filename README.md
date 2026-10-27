@@ -22,9 +22,17 @@ installed into `/data/rootfs.img` (TWRP zip), while the stock MIUI 13
       `fsc`, `misc`, `devinfo`, `frp`, `keystore`, GPT, ...)
 * [x] LineageOS kernel tree pinned to `71b13e62f` (lineage-23.2)
 * [x] Halium patches verified against that commit (`git apply --check` clean)
-* [ ] GitHub Actions build of `boot.img` + `vbmeta.img`
+* [x] GitHub Actions build of `boot.img` + `vbmeta.img`
+      — fixed the debhelper failure of run 121444855066 (see below); waiting for the next green run
 * [ ] Install Droidian rootfs (TWRP), flash boot, first boot
 * [ ] Wi-Fi, touch, Phosh validation
+
+### Build troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `dh: error: debhelper compat level specified both in debian/compat and in debian/control` (exit 29) | `control` listed `debhelper-compat (= 13)` while `debian/compat` also existed; CI run 121444855066 | `debhelper-compat` removed from `control`; `packaging/debian/compat` (13) and `packaging/debian/changelog` added and installed by `scripts/prepare-kernel.sh` |
+| A patch only fails after ten minutes of kernel build | patches were applied without a dry run | `prepare-kernel.sh` now runs `git apply --check` over the whole series before applying anything; `build.yml` adds a packaging sanity step |
 
 ## Kernel patches
 
