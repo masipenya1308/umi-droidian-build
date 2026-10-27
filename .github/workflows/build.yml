@@ -45,8 +45,15 @@ jobs:
           for f in control changelog compat rules kernel-info.mk source/format; do
             test -f "$f" || { echo "::error::debian/$f is missing"; exit 1; }
           done
-          ! grep -q 'debhelper-compat' control \
-            || { echo "::error::debhelper-compat in control conflicts with the debian/compat file"; exit 1; }
+          # Only the Build-Depends field matters. A plain grep over the whole file
+          # also matched the explanatory comment added next to the field and made
+          # this check fail on run 40476422655.
+          if sed -n '/^Build-Depends:/,/^[A-Za-z][A-Za-z-]*:/p' control | grep -q 'debhelper-compat'; then
+            echo "::error::debhelper-compat in Build-Depends conflicts with the debian/compat file"
+            exit 1
+          fi
+          grep -q '^debhelper (>= 13)' control \
+            || echo "::warning::control has no 'debhelper (>= 13)' in Build-Depends"
           true
 
       - name: Build packages in Droidian container
