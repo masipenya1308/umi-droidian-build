@@ -31,6 +31,9 @@ installed into `/data/rootfs.img` (TWRP zip), while the stock MIUI 13
       enumerates the phone as a WPD device and it persists across reboots
 * [x] Recovery from a broken `apt upgrade` documented in
       [`docs/RECOVERY-black-screen.md`](docs/RECOVERY-black-screen.md)
+* [x] `apt` made usable: `releases.droidian.org` stalls at ~33 KB from the
+      phone, so apt goes through a caching proxy on the LAN
+      ([`docs/APT-PROXY.md`](docs/APT-PROXY.md), `tools/aptproxy/proxy.py`)
 * [ ] Audio routing (`deep_buffer` / `primary input` mix ports still unmatched;
       needs a device `audio_policy_configuration.xml`)
 * [ ] `libminisf.so` shim built and installed (`umi-libminisf` repo, unbuilt)
@@ -131,4 +134,6 @@ packaging/debian/             Debian packaging (linux-packaging-snippets)
 configs/halium.config         Halium kernel config fragment
 patches/                      kernel patches (apollo series, adapted)
 docs/RECOVERY-black-screen.md on-device recovery notes (Phosh black screen, MTP)
+docs/APT-PROXY.md             why apt was slow and the LAN caching proxy
+tools/aptproxy/proxy.py       the proxy itself
 ```
