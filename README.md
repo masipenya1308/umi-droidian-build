@@ -23,9 +23,17 @@ installed into `/data/rootfs.img` (TWRP zip), while the stock MIUI 13
 * [x] LineageOS kernel tree pinned to `71b13e62f` (lineage-23.2)
 * [x] Halium patches verified against that commit (`git apply --check` clean)
 * [x] GitHub Actions build of `boot.img` + `vbmeta.img`
-      — fixed the debhelper failure of run 121444855066 (see below); waiting for the next green run
-* [ ] Install Droidian rootfs (TWRP), flash boot, first boot
-* [ ] Wi-Fi, touch, Phosh validation
+      — fixed the debhelper failure of run 121444855066 (see below)
+* [x] Droidian rootfs installed (TWRP), `boot.img` flashed, device boots
+* [x] Wi-Fi, touch, Phosh validation — Phosh reaches the lock screen in under a
+      minute and survives repeated reboots
+* [x] USB switched from RNDIS to MTP (dedicated configfs gadget); Windows
+      enumerates the phone as a WPD device and it persists across reboots
+* [x] Recovery from a broken `apt upgrade` documented in
+      [`docs/RECOVERY-black-screen.md`](docs/RECOVERY-black-screen.md)
+* [ ] Audio routing (`deep_buffer` / `primary input` mix ports still unmatched;
+      needs a device `audio_policy_configuration.xml`)
+* [ ] `libminisf.so` shim built and installed (`umi-libminisf` repo, unbuilt)
 
 ### Build troubleshooting
 
@@ -122,4 +130,5 @@ scripts/prepare-kernel.sh     patches + fragments + packaging into the kernel tr
 packaging/debian/             Debian packaging (linux-packaging-snippets)
 configs/halium.config         Halium kernel config fragment
 patches/                      kernel patches (apollo series, adapted)
+docs/RECOVERY-black-screen.md on-device recovery notes (Phosh black screen, MTP)
 ```
