@@ -1,3 +1,5 @@
 /kernel/
 /out/
 /artifact/
+tools/aptproxy/cache/
+tools/aptproxy/*.log
