@@ -74,11 +74,22 @@ D:\python\pythonw.exe D:\umi\work\aptproxy\proxy.py     # port 3142
 ```
 
 ```bash
-# on the phone
-echo 'Acquire::http::Proxy "http://192.168.1.12:3142";' \
+# on the phone: use the cache when it is reachable, DIRECT otherwise
+cat > /usr/local/bin/apt-proxy-detect <<'EOF'
+#!/bin/bash
+if timeout 1 bash -c 'exec 3<>/dev/tcp/192.168.1.12/3142' 2>/dev/null; then
+    echo "http://192.168.1.12:3142"
+else
+    echo "DIRECT"
+fi
+EOF
+chmod 755 /usr/local/bin/apt-proxy-detect
+echo 'Acquire::http::Proxy-Auto-Detect "/usr/local/bin/apt-proxy-detect";' \
     > /etc/apt/apt.conf.d/99proxy
 apt update
 ```
+
+`/bin/sh` is `dash` on Droidian and has no `/dev/tcp`, hence the explicit `bash`.
 
 Measured after the switch:
 
@@ -93,12 +104,60 @@ Notes:
   tunnelled but not cached, so an `https` source would work but stay slow.
 * Entries never expire; that is fine for a frozen snapshot. Delete
   `D:\umi\work\aptproxy\cache` to start over.
-* If the Windows box is off, apt on the phone fails with
-  `Connection failed [IP: 192.168.1.12 3142]`. Either start the proxy or drop
-  the setting for one run:
-  `apt-get -o Acquire::http::Proxy=false update`.
+* If the Windows box is off, `Proxy-Auto-Detect` returns `DIRECT` and apt talks
+  to the snapshot itself. See the next section for what that means in practice.
 * The proxy is started from the user's Startup folder
   (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\umi-apt-proxy.lnk`),
   so it comes up at logon. No Windows network settings are touched.
 * Under `pythonw.exe` there is no stdout/stderr; the proxy logs to
   `D:\umi\work\aptproxy\proxy.log`.
+
+## What works without the PC
+
+Two measurements matter:
+
+* `deb.debian.org` is **fast** from the phone: 13 MB in 7 s (~1.9 MB/s). The
+  snapshot answers many package requests with a `302` to `deb.debian.org`
+  (e.g. `hello`), so those downloads never touch the throttled host.
+* the snapshot host itself only ever gives ~33 KB per connection.
+
+So with the PC off:
+
+| Action | Result |
+|---|---|
+| `apt install <pkg>` (lists already cached, package redirected to `deb.debian.org`) | works at full speed |
+| `apt install <pkg>` (package hosted on the snapshot, > 33 KB) | stalls, eventually fails |
+| `apt update` (34 MB of indexes on the snapshot) | stalls, old lists are kept |
+
+In practice: keep the PC on when you need to refresh the indexes or install
+something large; otherwise the phone is self-sufficient.
+
+## Why not just zapret / DPI desync
+
+The blocking here is not one mechanism, and only one of them is the kind zapret
+fixes. Measured from the phone:
+
+* **DNS filtering**: `speed.hetzner.de` does not resolve at all.
+* **SNI-based TLS blocking**: `openssl s_client -connect 88.198.248.254:443
+  -servername www.hetzner.com` hangs, while the *same* connection with
+  `-servername example.com` completes the handshake immediately. This is
+  exactly what zapret's split/fake ClientHello defeats.
+* **Bandwidth throttling**: `releases.droidian.org` (also Hetzner) connects,
+  serves ~33 KB and then stops — with or without Host header splitting, and
+  with any MTU/TCP option. `mirror.hetzner.com` is dead outright over both
+  HTTP and HTTPS.
+
+zapret defeats *classification* (DNS answers, SNI, Host), not a throttle applied
+to the destination address range, so it would not make the snapshot fast. It
+could still be worth installing for SNI-blocked HTTPS sites, but that is a
+separate goal.
+
+Feasibility on this device, for the record: NFQUEUE is compiled into the kernel
+(`/proc/net/netfilter/nfnetlink_queue` exists, `iptables -j NFQUEUE` accepts a
+rule even though `modprobe nfnetlink_queue` fails), so `nfqws` would run. The
+obstacle is building it: the snapshot has no working `gcc` (the `gcc-16` runtime
+packages it depends on return `302` with no `Location`), so it would have to be
+cross-compiled — e.g. by a GitHub Actions job producing a static aarch64
+`nfqws`. Flowseal's `zapret-discord-youtube` is a Windows bundle (`winws.exe`
+plus `.bat` files) and cannot be used on Droidian as-is; the Linux core is
+`bol-van/zapret`.

@@ -1,0 +1,17 @@
+#!/bin/bash
+# apt Proxy-Auto-Detect helper for the umi phone.
+#
+# The work PC runs a caching proxy on 3142 (see proxy.py). When it is off, apt
+# falls back to DIRECT: small metadata still works, bulk downloads from the
+# throttled snapshot do not, but that beats a hard failure.
+#
+# Install as /usr/local/bin/apt-proxy-detect and point apt at it:
+#   echo 'Acquire::http::Proxy-Auto-Detect "/usr/local/bin/apt-proxy-detect";' \
+#       > /etc/apt/apt.conf.d/99proxy
+#
+# /bin/sh is dash on Droidian and has no /dev/tcp, hence bash.
+if timeout 1 bash -c 'exec 3<>/dev/tcp/192.168.1.12/3142' 2>/dev/null; then
+    echo "http://192.168.1.12:3142"
+else
+    echo "DIRECT"
+fi

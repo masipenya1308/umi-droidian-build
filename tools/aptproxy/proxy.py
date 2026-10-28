@@ -23,9 +23,9 @@ import socketserver
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 CACHE_DIR = None
 LOG_PATH = None
@@ -67,14 +67,25 @@ def store_cached(url, meta, body):
 
 
 def fetch_upstream(url, timeout=120):
-    req = urllib.request.Request(url, headers={"User-Agent": "umi-apt-proxy/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read()
-        meta = {
-            "status": resp.status,
-            "headers": {k: v for k, v in resp.headers.items()
-                        if k.lower() not in HOP},
-        }
+    """Fetch over plain HTTP without following redirects (apt handles 3xx)."""
+    parts = urlsplit(url)
+    conn = http.client.HTTPConnection(parts.hostname, parts.port or 80, timeout=timeout)
+    path = parts.path or "/"
+    if parts.query:
+        path += "?" + parts.query
+    conn.request("GET", path, headers={
+        "Host": parts.netloc,
+        "User-Agent": "umi-apt-proxy/1.0",
+        "Accept-Encoding": "identity",
+        "Connection": "close",
+    })
+    resp = conn.getresponse()
+    body = resp.read()
+    meta = {
+        "status": resp.status,
+        "headers": {k: v for k, v in resp.getheaders() if k.lower() not in HOP},
+    }
+    conn.close()
     return meta, body
 
 
@@ -168,14 +179,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             meta, body = fetch_upstream(url)
-        except urllib.error.HTTPError as exc:
-            self.send_simple(exc.code, "upstream: %s\n" % exc.reason)
-            return
         except Exception as exc:  # noqa: BLE001 - report anything to apt
             self.send_simple(502, "upstream failed: %s\n" % exc)
             return
-        with LOCK:
-            store_cached(url, meta, body)
+        if meta["status"] == 200:
+            with LOCK:
+                store_cached(url, meta, body)
         headers = dict(meta["headers"])
         headers["X-Cache"] = "MISS"
         total = len(body)
