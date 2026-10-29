@@ -136,4 +136,5 @@ configs/halium.config         Halium kernel config fragment
 patches/                      kernel patches (apollo series, adapted)
 docs/RECOVERY-black-screen.md on-device recovery notes (Phosh black screen, MTP)
 docs/APT-THROTTLING.md        why apt is slow on this network, what was ruled out
+docs/MAINLINE-umi.md          what a mainline kernel port would take (research)
 ```
